@@ -77,6 +77,7 @@ func New() *EPD {
 
 func (e *EPD) Reinitialize() {
 	log.Printf("Reinitialize")
+	e.Reset()
 	e.SendCommand(DriverOutputControl, (e.height-1)&0xff, ((e.height-1)>>8)&0xff, 0x00)
 	e.SendCommand(BoosterSoftStartControl, 0xd7, 0xd6, 0x9d)
 	e.SendCommand(WriteVCOMRegister, 0xA8)
@@ -137,7 +138,7 @@ func (e *EPD) SetLUT(lut []byte) {
 }
 
 func (e *EPD) SetMemoryArea(startX, startY, endX, endY uint8) {
-	log.Printf("SetMemoryArea")
+	log.Printf("SetMemoryArea startX = %d, startY = %d, endX = %d, endY = %d", startX, startY, endX, endY)
 	// x point must be multiple of 8 or the last 3 bits will be ignored
 	e.SendCommand(SetRamXAddressStartEndPosition, (startX>>3)&0xFF, (endX>>3)&0xFF)
 	e.SendCommand(SetRamYAddressStartEndPosition, startY&0xFF, (startY>>8)&0xFF, endY&0xFF, (endY>>8)&0xFF)
