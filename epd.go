@@ -1,8 +1,10 @@
 package epd
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -10,7 +12,9 @@ import (
 	"github.com/ecc1/spi"
 )
 
-const hoge = 1
+func (cmd Command) Byte() byte {
+	return byte(cmd)
+}
 
 func New() *EPD {
 	var pinBUSY gpio.InputPin
@@ -72,35 +76,50 @@ func New() *EPD {
 }
 
 func (e *EPD) Reinitialize() {
-	e.SendCommand(DriverOutputControl)
-	e.SendData((Height - 1) & 0xff)
-	e.SendData(((Height - 1) >> 8) & 0xff)
-	e.SendData(0x00)
-	e.SendCommand(BoosterSoftStartControl)
-	e.SendData(0xd7)
-	e.SendData(0xd6)
-	e.SendData(0x9D)
-	e.SendCommand(WriteVCOMRegister)
-	e.SendData(0xA8)
-	e.SendCommand(SetDummyLinePeriod)
-	e.SendData(0x1A)
-	e.SendCommand(SetGateTime)
-	e.SendData(0x08)
-	e.SendCommand(DataEntryModeSetting)
-	e.SendData(0x03)
+	log.Printf("Reinitialize")
+	e.SendCommand(DriverOutputControl, (e.height-1)&0xff, ((e.height-1)>>8)&0xff, 0x00)
+	e.SendCommand(BoosterSoftStartControl, 0xd7, 0xd6, 0x9d)
+	e.SendCommand(WriteVCOMRegister, 0xA8)
+	e.SendCommand(SetDummyLinePeriod, 0x1A)
+	e.SendCommand(SetGateTime, 0x08)
+	e.SendCommand(DataEntryModeSetting, 0x03)
 	e.SetLUT(e.lut)
 }
 
 func (e *EPD) Reset() {
+	log.Printf("Reset")
 	e.reset.Write(false)
 	time.Sleep(200 * time.Millisecond)
 	e.reset.Write(true)
 	time.Sleep(200 * time.Millisecond)
 }
 
-func (e *EPD) SendCommand(cmd byte) {
+func (e *EPD) SendCommand(cmd Command, args ...byte) {
 	e.dc.Write(false)
-	e.spi.Transfer([]byte{cmd})
+
+	var buf bytes.Buffer
+
+	fmt.Fprintf(&buf, "CMD: ")
+	scmd := cmd.String()
+	if len(scmd) > 15 {
+		fmt.Fprintf(&buf, "%-12s...", scmd[:12])
+	} else {
+		fmt.Fprintf(&buf, "%-15s", scmd)
+	}
+	fmt.Fprintf(&buf, "(0x%02X)", cmd.Byte())
+	if len(args) > 0 {
+		fmt.Fprintf(&buf, " ARGS: [")
+		for i, arg := range args {
+			fmt.Fprintf(&buf, "0x%02X", arg)
+			if i < len(args)-1 {
+				fmt.Fprintf(&buf, ", ")
+			}
+		}
+		fmt.Fprintf(&buf, "]")
+	}
+	log.Println(buf.String())
+	e.spi.Transfer([]byte{cmd.Byte()})
+	e.SendData(args...)
 }
 
 // SendData sends data through SPI. Arbitrary number of bytes can be
@@ -114,32 +133,19 @@ func (e *EPD) SendData(data ...byte) {
 
 func (e *EPD) SetLUT(lut []byte) {
 	e.lut = lut
-	e.SendCommand(WriteLUTRegister)
-	for _, v := range lut {
-		e.SendData(v)
-	}
+	e.SendCommand(WriteLUTRegister, lut...)
 }
 
 func (e *EPD) SetMemoryArea(startX, startY, endX, endY uint8) {
 	log.Printf("SetMemoryArea")
 	// x point must be multiple of 8 or the last 3 bits will be ignored
-	e.SendCommand(SetRamXAddressStartEndPosition)
-	e.SendData((startX >> 3) & 0xFF)
-	e.SendData((endX >> 3) & 0xFF)
-	e.SendCommand(SetRamYAddressStartEndPosition)
-	e.SendData(startY & 0xFF)
-	e.SendData((startY >> 8) & 0xFF)
-	e.SendData(endY & 0xFF)
-	e.SendData((endY >> 8) & 0xFF)
+	e.SendCommand(SetRamXAddressStartEndPosition, (startX>>3)&0xFF, (endX>>3)&0xFF)
+	e.SendCommand(SetRamYAddressStartEndPosition, startY&0xFF, (startY>>8)&0xFF, endY&0xFF, (endY>>8)&0xFF)
 }
 
 func (e *EPD) SetMemoryPointer(x, y uint8) {
-	log.Printf("SetMemoryPointer")
-	e.SendCommand(SetRamXAddressCounter)
-	e.SendData((x >> 3) & 0xFF)
-	e.SendCommand(SetRamYAddressCounter)
-	e.SendData(y & 0xFF)
-	e.SendData((y >> 8) & 0xFF)
+	e.SendCommand(SetRamXAddressCounter, (x>>3)&0xFF)
+	e.SendCommand(SetRamYAddressCounter, y&0xFF, (y>>8)&0xFF)
 	e.WaitUntilIdle(nil)
 }
 
@@ -156,7 +162,6 @@ func (e *EPD) WaitUntilIdle(ctx context.Context) error {
 		if err == nil && !b {
 			return nil
 		}
-		log.Printf("b = %t", b)
 
 		select {
 		case <-ctx.Done():
@@ -168,20 +173,20 @@ func (e *EPD) WaitUntilIdle(ctx context.Context) error {
 }
 
 func (e *EPD) ClearFrameMemory(color byte) {
-	log.Printf("ClearFrameMemory")
-	defer log.Printf("done")
 	e.SetMemoryArea(0, 0, e.width-1, e.height-1)
 	e.SetMemoryPointer(0, 0)
 	log.Printf("Start writing to RAM")
-	e.SendCommand(WriteRAM)
-	for i := uint8(0); i < (e.width/8)*e.height; i++ {
-		e.SendData(color)
+
+	// XXX this is not optimal, but makes it easier for debugging
+	args := make([]byte, e.width/8*e.height)
+	for i := range args {
+		args[i] = color
 	}
+	e.SendCommand(WriteRAM, args...)
 }
 
 func (e *EPD) DisplayFrame() {
-	e.SendCommand(DisplayUpdateControl2)
-	e.SendData(0xC4)
+	e.SendCommand(DisplayUpdateControl2, 0xC4)
 	e.SendCommand(MasterActivation)
 	e.SendCommand(TerminateFrameReadWrite)
 	e.WaitUntilIdle(nil)

@@ -16,7 +16,8 @@ func main() {
 
 func _main() error {
 	e := epd.New()
-	e.ClearFrameMemory(0x00)
+	e.Reset()
+	e.ClearFrameMemory(0xff)
 	e.DisplayFrame()
 
 	return nil
