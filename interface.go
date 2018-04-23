@@ -58,6 +58,7 @@ func init() {
 		panic("failed to open SPI device: " + err.Error())
 	}
 	Spi = d
+	Spi.SetMode(0)
 
 	{
 		p, err := gpio.Input(defPinBusy, false)
