@@ -7,13 +7,12 @@ import (
 )
 
 func TestEPD(t *testing.T) {
+	e := epd.New()
 	t.Run("Reset", func(t *testing.T) {
-		e := epd.New()
 		e.Reset()
+		e.WaitUntilIdle()
 	})
 	t.Run("Clear", func(t *testing.T) {
-		e := epd.New()
-		e.Reset()
 		e.ClearFrameMemory(0x00)
 		e.DisplayFrame()
 	})

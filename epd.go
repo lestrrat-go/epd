@@ -15,6 +15,8 @@ func New() *EPD {
 		dc:    PinDC,
 		lut:   lutFullUpdate,
 		reset: PinRST,
+		width: Width,
+		height: Height,
 	}
 
 	e.Reinitialize()
@@ -68,7 +70,7 @@ func (e *EPD) SetLUT(lut []byte) {
 
 func (e *EPD) SetMemoryArea(startX, startY, endX, endY uint8) {
 	log.Printf("SetMemoryArea")
-	// x point must be the multiple of 8 or the last 3 bits will be ignored
+	// x point must be multiple of 8 or the last 3 bits will be ignored
 	e.SendCommand(SetRamXAddressStartEndPosition)
 	e.SendData((startX >> 3) & 0xFF)
 	e.SendData((endX >> 3) & 0xFF)
@@ -116,11 +118,11 @@ func (e *EPD) WaitUntilIdle(ctx context.Context) error {
 func (e *EPD) ClearFrameMemory(color byte) {
 	log.Printf("ClearFrameMemory")
 	defer log.Printf("done")
-	e.SetMemoryArea(0, 0, Width-1, Height-1)
+	e.SetMemoryArea(0, 0, e.width-1, e.height-1)
 	e.SetMemoryPointer(0, 0)
 	log.Printf("Start writing to RAM")
 	e.SendCommand(WriteRAM)
-	for i := 0; i < (Width/8)*Height; i++ {
+	for i := 0; i < (e.width/8)*e.height; i++ {
 		e.SendData(color)
 	}
 }

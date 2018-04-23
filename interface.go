@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	Width  = 128
+	Width  = 128 // hardcoded for 2.13 inch ePaper for now
 	Height = 250
 )
 
@@ -93,10 +93,12 @@ func init() {
 }
 
 type EPD struct {
-	busy  gpio.InputPin
-	dc    gpio.OutputPin
-	lut   []byte
-	reset gpio.OutputPin
+	busy   gpio.InputPin
+	dc     gpio.OutputPin
+	lut    []byte
+	reset  gpio.OutputPin
+	width  int
+	height int
 }
 
 var lutFullUpdate = []byte{
