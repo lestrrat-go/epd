@@ -97,8 +97,8 @@ type EPD struct {
 	dc     gpio.OutputPin
 	lut    []byte
 	reset  gpio.OutputPin
-	width  int
-	height int
+	width  uint8
+	height uint8
 }
 
 var lutFullUpdate = []byte{

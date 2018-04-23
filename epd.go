@@ -122,7 +122,7 @@ func (e *EPD) ClearFrameMemory(color byte) {
 	e.SetMemoryPointer(0, 0)
 	log.Printf("Start writing to RAM")
 	e.SendCommand(WriteRAM)
-	for i := 0; i < (e.width/8)*e.height; i++ {
+	for i := uint8(0); i < (e.width/8)*e.height; i++ {
 		e.SendData(color)
 	}
 }
