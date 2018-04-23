@@ -5,17 +5,65 @@ import (
 	"errors"
 	"log"
 	"time"
+
+	"github.com/ecc1/gpio"
+	"github.com/ecc1/spi"
 )
 
 const hoge = 1
 
 func New() *EPD {
+	var pinBUSY gpio.InputPin
+	var pinCS gpio.OutputPin
+	var pinDC gpio.OutputPin
+	var pinRST gpio.OutputPin
+
+	d, err := spi.Open("/dev/spidev0.0", 2000000, 0)
+	if err != nil {
+		panic("failed to open SPI device: " + err.Error())
+	}
+	d.SetMode(0)
+
+	{
+		p, err := gpio.Input(defPinBusy, false)
+		if err != nil {
+			panic("failed to setup BUSY pin: " + err.Error())
+		}
+		pinBUSY = p
+	}
+
+	{
+		p, err := gpio.Output(defPinCS, false, false)
+		if err != nil {
+			panic("failed to setup CS pin: " + err.Error())
+		}
+		pinCS = p
+	}
+
+	{
+		p, err := gpio.Output(defPinDC, false, false)
+		if err != nil {
+			panic("failed to setup DC pin: " + err.Error())
+		}
+		pinDC = p
+	}
+
+	{
+		p, err := gpio.Output(defPinRST, false, false)
+		if err != nil {
+			panic("failed to setup RST pin: " + err.Error())
+		}
+		pinRST = p
+	}
+
 	e := &EPD{
-		busy:  PinBUSY,
-		dc:    PinDC,
-		lut:   lutFullUpdate,
-		reset: PinRST,
-		width: Width,
+		busy:   pinBUSY,
+		cs:     pinCS,
+		dc:     pinDC,
+		lut:    lutFullUpdate,
+		reset:  pinRST,
+		spi:    d,
+		width:  Width,
 		height: Height,
 	}
 
@@ -52,12 +100,16 @@ func (e *EPD) Reset() {
 
 func (e *EPD) SendCommand(cmd byte) {
 	e.dc.Write(false)
-	Spi.Transfer([]byte{cmd})
+	e.spi.Transfer([]byte{cmd})
 }
 
-func (e *EPD) SendData(data byte) {
-	e.dc.Write(true)
-	Spi.Transfer([]byte{data})
+// SendData sends data through SPI. Arbitrary number of bytes can be
+// passed to this method, and they will be each sent in succession
+func (e *EPD) SendData(data ...byte) {
+	for _, b := range data {
+		e.dc.Write(true)
+		e.spi.Transfer([]byte{b})
+	}
 }
 
 func (e *EPD) SetLUT(lut []byte) {

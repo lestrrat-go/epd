@@ -46,58 +46,13 @@ const (
 	defPinRST  = 17
 )
 
-var Spi *spi.Device
-var PinBUSY gpio.InputPin
-var PinCS gpio.OutputPin
-var PinDC gpio.OutputPin
-var PinRST gpio.OutputPin
-
-func init() {
-	d, err := spi.Open("/dev/spidev0.0", 2000000, 0)
-	if err != nil {
-		panic("failed to open SPI device: " + err.Error())
-	}
-	Spi = d
-	Spi.SetMode(0)
-
-	{
-		p, err := gpio.Input(defPinBusy, false)
-		if err != nil {
-			panic("failed to setup BUSY pin: " + err.Error())
-		}
-		PinBUSY = p
-	}
-
-	{
-		p, err := gpio.Output(defPinCS, false, false)
-		if err != nil {
-			panic("failed to setup CS pin: " + err.Error())
-		}
-		PinCS = p
-	}
-
-	{
-		p, err := gpio.Output(defPinDC, false, false)
-		if err != nil {
-			panic("failed to setup DC pin: " + err.Error())
-		}
-		PinDC = p
-	}
-
-	{
-		p, err := gpio.Output(defPinRST, false, false)
-		if err != nil {
-			panic("failed to setup RST pin: " + err.Error())
-		}
-		PinRST = p
-	}
-}
-
 type EPD struct {
 	busy   gpio.InputPin
+	cs     gpio.OutputPin
 	dc     gpio.OutputPin
 	lut    []byte
 	reset  gpio.OutputPin
+	spi    *spi.Device
 	width  uint8
 	height uint8
 }
