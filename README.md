@@ -9,7 +9,7 @@ This assumes you are using RaspberryPi Zero W(H)
 ## Install go for armv6l
 
 ```
-sudo tar -C /usr/local -xzf https://dl.google.com/go/go1.10.1.linux-armv6l.tar.gz
+curl https://dl.google.com/go/go1.10.1.linux-armv6l.tar.gz | sudo tar xz -C /usr/local
 ```
 
 Add the path to Go in your environment, such as `/etc/profile`
