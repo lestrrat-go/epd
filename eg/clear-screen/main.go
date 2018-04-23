@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image"
 	"log"
 	"os"
 
@@ -16,8 +17,9 @@ func main() {
 
 func _main() error {
 	e := epd.New()
-	e.Reset()
-	e.ClearFrameMemory(0xff)
+	e.SetFrameMemory(image.Black, 0, 0)
+	e.DisplayFrame()
+	e.SetFrameMemory(image.White, 0, 0)
 	e.DisplayFrame()
 
 	return nil

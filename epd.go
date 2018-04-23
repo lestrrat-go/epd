@@ -5,11 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"image"
+	"image/color"
 	"time"
 
 	"github.com/ecc1/gpio"
 	"github.com/ecc1/spi"
+	"github.com/lestrrat-go/pdebug"
 )
 
 func (cmd Command) Byte() byte {
@@ -76,7 +78,9 @@ func New() *EPD {
 }
 
 func (e *EPD) Reinitialize() {
-	log.Printf("Reinitialize")
+	if pdebug.Enabled {
+		pdebug.Printf("Reinitialize")
+	}
 	e.Reset()
 	e.SendCommand(DriverOutputControl, (e.height-1)&0xff, ((e.height-1)>>8)&0xff, 0x00)
 	e.SendCommand(BoosterSoftStartControl, 0xd7, 0xd6, 0x9d)
@@ -88,7 +92,9 @@ func (e *EPD) Reinitialize() {
 }
 
 func (e *EPD) Reset() {
-	log.Printf("Reset")
+	if pdebug.Enabled {
+		pdebug.Printf("Reset")
+	}
 	e.reset.Write(false)
 	time.Sleep(200 * time.Millisecond)
 	e.reset.Write(true)
@@ -96,29 +102,30 @@ func (e *EPD) Reset() {
 }
 
 func (e *EPD) SendCommand(cmd Command, args ...byte) {
-	e.dc.Write(false)
+	if pdebug.Enabled {
+		var buf bytes.Buffer
 
-	var buf bytes.Buffer
-
-	fmt.Fprintf(&buf, "CMD: ")
-	scmd := cmd.String()
-	if len(scmd) > 15 {
-		fmt.Fprintf(&buf, "%-12s...", scmd[:12])
-	} else {
-		fmt.Fprintf(&buf, "%-15s", scmd)
-	}
-	fmt.Fprintf(&buf, "(0x%02X)", cmd.Byte())
-	if len(args) > 0 {
-		fmt.Fprintf(&buf, " ARGS: [")
-		for i, arg := range args {
-			fmt.Fprintf(&buf, "0x%02X", arg)
-			if i < len(args)-1 {
-				fmt.Fprintf(&buf, ", ")
-			}
+		fmt.Fprintf(&buf, "CMD: ")
+		scmd := cmd.String()
+		if len(scmd) > 15 {
+			fmt.Fprintf(&buf, "%-12s...", scmd[:12])
+		} else {
+			fmt.Fprintf(&buf, "%-15s", scmd)
 		}
-		fmt.Fprintf(&buf, "]")
+		fmt.Fprintf(&buf, "(0x%02X)", cmd.Byte())
+		if l := len(args); l > 0 {
+			fmt.Fprintf(&buf, " ARGS: [")
+			for i, arg := range args {
+				fmt.Fprintf(&buf, "0x%02X", arg)
+				if i < l-1 {
+					fmt.Fprintf(&buf, ", ")
+				}
+			}
+			fmt.Fprintf(&buf, "] (%d)", l)
+		}
+		pdebug.Printf(buf.String())
 	}
-	log.Println(buf.String())
+	e.dc.Write(false)
 	e.spi.Transfer([]byte{cmd.Byte()})
 	e.SendData(args...)
 }
@@ -138,7 +145,6 @@ func (e *EPD) SetLUT(lut []byte) {
 }
 
 func (e *EPD) SetMemoryArea(startX, startY, endX, endY uint8) {
-	log.Printf("SetMemoryArea startX = %d, startY = %d, endX = %d, endY = %d", startX, startY, endX, endY)
 	// x point must be multiple of 8 or the last 3 bits will be ignored
 	e.SendCommand(SetRamXAddressStartEndPosition, (startX>>3)&0xFF, (endX>>3)&0xFF)
 	e.SendCommand(SetRamYAddressStartEndPosition, startY&0xFF, (startY>>8)&0xFF, endY&0xFF, (endY>>8)&0xFF)
@@ -176,7 +182,6 @@ func (e *EPD) WaitUntilIdle(ctx context.Context) error {
 func (e *EPD) ClearFrameMemory(color byte) {
 	e.SetMemoryArea(0, 0, e.width-1, e.height-1)
 	e.SetMemoryPointer(0, 0)
-	log.Printf("Start writing to RAM")
 
 	// XXX this is not optimal, but makes it easier for debugging
 	args := make([]byte, e.width/8*e.height)
@@ -191,4 +196,48 @@ func (e *EPD) DisplayFrame() {
 	e.SendCommand(MasterActivation)
 	e.SendCommand(TerminateFrameReadWrite)
 	e.WaitUntilIdle(nil)
+}
+
+func (e *EPD) SetFrameMemory(im image.Image, x, y uint8) {
+
+	bounds := im.Bounds()
+	width := uint8((bounds.Max.X - bounds.Min.X) & 0xF8)
+	height := uint8(bounds.Max.Y - bounds.Min.Y)
+
+	x = x & 0xF8
+	var endX uint8
+	var endY uint8
+
+	_, isUniform := im.(*image.Uniform)
+
+	if isUniform || x+width > e.width {
+		endX = e.width - 1
+	} else {
+		endX = x + width - 1
+	}
+	if isUniform || y+height > e.height {
+		endY = e.height - 1
+	} else {
+		endY = y + height - 1
+	}
+
+	e.SetMemoryArea(x, y, endX, endY)
+
+	var byteToSend byte
+	for j := y; j < endY+1; j++ {
+		e.SetMemoryPointer(x, j)
+
+		var args []byte
+		for i := x; i < endX+1; i++ {
+			c := color.GrayModel.Convert(im.At(int(i-x), int(j-y)))
+			if gc := c.(color.Gray); gc.Y >= 64 {
+				byteToSend |= 0x80 >> (i % 8)
+			}
+			if i%8 == 7 {
+				args = append(args, byteToSend)
+				byteToSend = 0x00
+			}
+		}
+		e.SendCommand(WriteRAM, args...)
+	}
 }
