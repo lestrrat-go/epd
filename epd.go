@@ -81,6 +81,11 @@ func (e *EPD) Reinitialize() {
 	if pdebug.Enabled {
 		pdebug.Printf("Reinitialize")
 	}
+
+	// This buffer is used to hold temporary variables before sending
+	// them to frame memory
+	e.buffer = make([]byte, e.width/8*e.height, e.width/8*e.height)
+
 	e.Reset()
 	e.SendCommand(DriverOutputControl, (e.height-1)&0xff, ((e.height-1)>>8)&0xff, 0x00)
 	e.SendCommand(BoosterSoftStartControl, 0xd7, 0xd6, 0x9d)
@@ -182,7 +187,7 @@ func (e *EPD) WaitUntilIdle(ctx context.Context) error {
 func (e *EPD) ClearFrameMemory(color byte) {
 	e.SetMemoryArea(0, 0, e.width-1, e.height-1)
 
-	args := make([]byte, e.width/8, e.width/8)
+	args := e.buffer[:e.width/8]
 	for i := 0; i < int(e.width/8); i++ {
 		args[i] = color
 	}

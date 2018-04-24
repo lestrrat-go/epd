@@ -49,6 +49,7 @@ const (
 )
 
 type EPD struct {
+	buffer []byte
 	busy   gpio.InputPin
 	cs     gpio.OutputPin
 	dc     gpio.OutputPin
