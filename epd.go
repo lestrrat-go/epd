@@ -205,7 +205,6 @@ func (e *EPD) DisplayFrame() {
 }
 
 func (e *EPD) SetFrameMemory(im image.Image, x, y uint8) {
-
 	bounds := im.Bounds()
 	width := uint8((bounds.Max.X - bounds.Min.X) & 0xF8)
 	height := uint8(bounds.Max.Y - bounds.Min.Y)
@@ -236,7 +235,7 @@ func (e *EPD) SetFrameMemory(im image.Image, x, y uint8) {
 		var args []byte
 		for i := x; i < endX+1; i++ {
 			c := color.GrayModel.Convert(im.At(int(i-x), int(j-y)))
-			if gc := c.(color.Gray); gc.Y >= 64 {
+			if gc := c.(color.Gray); gc.Y >= 192 {
 				byteToSend |= 0x80 >> (i % 8)
 			}
 			if i%8 == 7 {
