@@ -83,8 +83,9 @@ func (e *EPD) Reinitialize() {
 	}
 
 	// This buffer is used to hold temporary variables before sending
-	// them to frame memory
-	e.buffer = make([]byte, e.width/8*e.height, e.width/8*e.height)
+	// them to frame memory. Only use it to draw a single "line", and
+	// keep reusing it.
+	e.buffer = make([]byte, e.width/8, e.width/8)
 
 	e.Reset()
 	e.SendCommand(DriverOutputControl, (e.height-1)&0xff, ((e.height-1)>>8)&0xff, 0x00)
@@ -187,7 +188,7 @@ func (e *EPD) WaitUntilIdle(ctx context.Context) error {
 func (e *EPD) ClearFrameMemory(color byte) {
 	e.SetMemoryArea(0, 0, e.width-1, e.height-1)
 
-	args := e.buffer[:e.width/8]
+	args := e.buffer
 	for i := 0; i < int(e.width/8); i++ {
 		args[i] = color
 	}
@@ -229,10 +230,11 @@ func (e *EPD) SetFrameMemory(im image.Image, x, y uint8) {
 	e.SetMemoryArea(x, y, endX, endY)
 
 	var byteToSend byte
+	var args []byte
 	for j := y; j < endY+1; j++ {
 		e.SetMemoryPointer(x, j)
 
-		var args []byte
+		args = e.buffer[:0]
 		for i := x; i < endX+1; i++ {
 			c := color.GrayModel.Convert(im.At(int(i-x), int(j-y)))
 			if gc := c.(color.Gray); gc.Y >= 192 {
