@@ -181,14 +181,15 @@ func (e *EPD) WaitUntilIdle(ctx context.Context) error {
 
 func (e *EPD) ClearFrameMemory(color byte) {
 	e.SetMemoryArea(0, 0, e.width-1, e.height-1)
-	e.SetMemoryPointer(0, 0)
 
-	// XXX this is not optimal, but makes it easier for debugging
-	args := make([]byte, e.width/8*e.height)
-	for i := range args {
+	args := make([]byte, e.width/8, e.width/8)
+	for i := 0; i < int(e.width/8); i++ {
 		args[i] = color
 	}
-	e.SendCommand(WriteRAM, args...)
+	for j := uint8(0); j < e.height; j++ {
+		e.SetMemoryPointer(0, j)
+		e.SendCommand(WriteRAM, args...)
+	}
 }
 
 func (e *EPD) DisplayFrame() {
