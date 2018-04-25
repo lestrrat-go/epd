@@ -11,6 +11,7 @@ import (
 
 	"github.com/ecc1/gpio"
 	"github.com/ecc1/spi"
+	"github.com/lestrrat-go/dither"
 	"github.com/lestrrat-go/pdebug"
 )
 
@@ -215,6 +216,9 @@ func (e *EPD) SetFrameMemory(im image.Image, x, y uint8) {
 	var endY uint8
 
 	_, isUniform := im.(*image.Uniform)
+	if !isUniform {
+		im = dither.Monochrome(dither.Burkes.Matrix(), im, 1.18)
+	}
 
 	if isUniform || x+width > e.width {
 		endX = e.width - 1
@@ -236,8 +240,7 @@ func (e *EPD) SetFrameMemory(im image.Image, x, y uint8) {
 
 		args = e.buffer[:0]
 		for i := x; i < endX+1; i++ {
-			c := color.GrayModel.Convert(im.At(int(i-x), int(j-y)))
-			if gc := c.(color.Gray); gc.Y >= 192 {
+			if im.At(int(i-x), int(j-y)).(color.Gray).Y == 255 {
 				byteToSend |= 0x80 >> (i % 8)
 			}
 			if i%8 == 7 {
