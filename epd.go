@@ -217,7 +217,7 @@ func (e *EPD) SetFrameMemory(im image.Image, x, y uint8) {
 
 	_, isUniform := im.(*image.Uniform)
 	if !isUniform {
-		im = dither.Monochrome(dither.Burkes.Matrix(), im, 1.18)
+		im = dither.Monochrome(dither.Burkes, im, 1.18)
 	}
 
 	if isUniform || x+width > e.width {
